@@ -1,0 +1,6 @@
+{
+  "name": "حضور المختبر",
+  "description": "تطبيق تسجيل حضور وانصراف العاملين في المختبر بالوقت العالمي الموثوق مع إرسال إشعار فوري عبر واتساب.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

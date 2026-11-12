@@ -1,0 +1,139 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global safety net: deny all by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidStaffMember(data, userId) {
+      return data.keys().hasAll(['userId', 'name', 'role', 'isActive', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'name', 'role', 'isActive', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.role is string && data.role.size() <= 60 &&
+             data.isActive is bool &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAttendanceRecord(data, userId) {
+      return data.keys().hasAll([
+               'userId', 'staffId', 'staffName', 'staffRole', 'workDateUtc',
+               'checkInUtcIso', 'checkInDisplayTime', 'checkInEpochMs', 'checkInSource',
+               'checkOutUtcIso', 'checkOutDisplayTime', 'checkOutEpochMs', 'checkOutSource',
+               'status', 'whatsappSent', 'notes', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'staffId', 'staffName', 'staffRole', 'workDateUtc',
+               'checkInUtcIso', 'checkInDisplayTime', 'checkInEpochMs', 'checkInSource',
+               'checkOutUtcIso', 'checkOutDisplayTime', 'checkOutEpochMs', 'checkOutSource',
+               'status', 'whatsappSent', 'notes', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == userId && data.userId.size() <= 128 &&
+             isValidId(data.staffId) &&
+             data.staffName is string && data.staffName.size() >= 1 && data.staffName.size() <= 80 &&
+             data.staffRole is string && data.staffRole.size() <= 60 &&
+             data.workDateUtc is string && data.workDateUtc.size() == 10 &&
+             data.checkInUtcIso is string && data.checkInUtcIso.size() >= 10 && data.checkInUtcIso.size() <= 40 &&
+             data.checkInDisplayTime is string && data.checkInDisplayTime.size() >= 4 && data.checkInDisplayTime.size() <= 60 &&
+             data.checkInEpochMs is int && data.checkInEpochMs > 0 &&
+             data.checkInSource is string && data.checkInSource.size() >= 2 && data.checkInSource.size() <= 60 &&
+             data.checkOutUtcIso is string && data.checkOutUtcIso.size() <= 40 &&
+             data.checkOutDisplayTime is string && data.checkOutDisplayTime.size() <= 60 &&
+             data.checkOutEpochMs is int && data.checkOutEpochMs >= 0 &&
+             data.checkOutSource is string && data.checkOutSource.size() <= 60 &&
+             data.status in ['checked_in', 'checked_out'] &&
+             data.whatsappSent is bool &&
+             data.notes is string && data.notes.size() <= 200 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId}/staff/{staffId} {
+      allow get: if isOwner(userId) && isValidId(staffId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) &&
+                       isValidId(staffId) &&
+                       isValidStaffMember(incoming(), userId) &&
+                       incoming().createdAt <= request.time;
+      allow update: if isOwner(userId) &&
+                       isValidId(staffId) &&
+                       isValidStaffMember(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'role', 'isActive', 'updatedAt']);
+      allow delete: if isOwner(userId) && isValidId(staffId);
+    }
+
+    match /users/{userId}/attendance/{recordId} {
+      allow get: if isOwner(userId) && isValidId(recordId);
+      allow list: if isOwner(userId);
+
+      // CREATE: New check-in record must start in checked_in state with empty checkout fields
+      allow create: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       isValidAttendanceRecord(incoming(), userId) &&
+                       incoming().createdAt <= request.time &&
+                       incoming().status == 'checked_in' &&
+                       incoming().checkOutUtcIso == '' &&
+                       incoming().checkOutDisplayTime == '' &&
+                       incoming().checkOutEpochMs == 0 &&
+                       incoming().checkOutSource == '' &&
+                       exists(/databases/$(database)/documents/users/$(userId)/staff/$(incoming().staffId));
+
+      // UPDATE: Action-based transitions (immutable check-in fields and terminal state locking on check-out)
+      allow update: if isOwner(userId) &&
+                       isValidId(recordId) &&
+                       isValidAttendanceRecord(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().staffId == existing().staffId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().workDateUtc == existing().workDateUtc &&
+                       incoming().checkInUtcIso == existing().checkInUtcIso &&
+                       incoming().checkInDisplayTime == existing().checkInDisplayTime &&
+                       incoming().checkInEpochMs == existing().checkInEpochMs &&
+                       incoming().checkInSource == existing().checkInSource && (
+                         // Action 1: Check-out transition (only once from checked_in -> checked_out)
+                         (existing().status == 'checked_in' &&
+                          incoming().status == 'checked_out' &&
+                          incoming().checkOutUtcIso.size() >= 10 &&
+                          incoming().checkOutDisplayTime.size() >= 4 &&
+                          incoming().checkOutEpochMs >= existing().checkInEpochMs &&
+                          incoming().checkOutSource.size() >= 2 &&
+                          incoming().diff(existing()).affectedKeys().hasOnly([
+                            'checkOutUtcIso', 'checkOutDisplayTime', 'checkOutEpochMs',
+                            'checkOutSource', 'status', 'notes', 'updatedAt'
+                          ])) ||
+                         // Action 2: Mark WhatsApp notification dispatched
+                         (incoming().status == existing().status &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['whatsappSent', 'updatedAt'])) ||
+                         // Action 3: Update notes only
+                         (incoming().status == existing().status &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['notes', 'updatedAt']))
+                       );
+
+      allow delete: if isOwner(userId) && isValidId(recordId);
+    }
+  }
+}

@@ -1,0 +1,150 @@
+{
+  "entities": {
+    "StaffMember": {
+      "title": "StaffMember",
+      "description": "A laboratory employee registered by the lab manager.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated lab manager UID owning this record."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of the laboratory staff member."
+        },
+        "role": {
+          "type": "string",
+          "description": "Job title or laboratory specialty."
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the employee is currently active in the lab."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (clients must submit FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated (clients must submit FieldValue.serverTimestamp())."
+        }
+      },
+      "required": ["userId", "name", "role", "isActive", "createdAt", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily check-in and check-out attendance entry stamped with authoritative global network UTC time.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated lab manager UID owning this attendance log."
+        },
+        "staffId": {
+          "type": "string",
+          "description": "Document ID of the StaffMember."
+        },
+        "staffName": {
+          "type": "string",
+          "description": "Denormalized staff member name."
+        },
+        "staffRole": {
+          "type": "string",
+          "description": "Denormalized staff role."
+        },
+        "workDateUtc": {
+          "type": "string",
+          "description": "Date in YYYY-MM-DD format from global network time."
+        },
+        "checkInUtcIso": {
+          "type": "string",
+          "description": "ISO-8601 UTC check-in timestamp from global time server."
+        },
+        "checkInDisplayTime": {
+          "type": "string",
+          "description": "Formatted check-in time for display and WhatsApp message."
+        },
+        "checkInEpochMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds in UTC from global time server."
+        },
+        "checkInSource": {
+          "type": "string",
+          "description": "Authoritative global time source name."
+        },
+        "checkOutUtcIso": {
+          "type": "string",
+          "description": "ISO-8601 UTC check-out timestamp from global time server, or empty before checkout."
+        },
+        "checkOutDisplayTime": {
+          "type": "string",
+          "description": "Formatted check-out time, or empty before checkout."
+        },
+        "checkOutEpochMs": {
+          "type": "integer",
+          "description": "Epoch milliseconds in UTC for check-out, or 0 before checkout."
+        },
+        "checkOutSource": {
+          "type": "string",
+          "description": "Authoritative global time source for check-out, or empty before checkout."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["checked_in", "checked_out"],
+          "description": "Current attendance state."
+        },
+        "whatsappSent": {
+          "type": "boolean",
+          "description": "Whether the instant WhatsApp notification was triggered."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional note for the attendance shift."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when created (clients must submit FieldValue.serverTimestamp())."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when last updated (clients must submit FieldValue.serverTimestamp())."
+        }
+      },
+      "required": [
+        "userId",
+        "staffId",
+        "staffName",
+        "staffRole",
+        "workDateUtc",
+        "checkInUtcIso",
+        "checkInDisplayTime",
+        "checkInEpochMs",
+        "checkInSource",
+        "checkOutUtcIso",
+        "checkOutDisplayTime",
+        "checkOutEpochMs",
+        "checkOutSource",
+        "status",
+        "whatsappSent",
+        "notes",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/staff/{staffId}": {
+      "schema": { "$ref": "#/entities/StaffMember" },
+      "description": "Laboratory employees owned by the authenticated manager."
+    },
+    "/users/{userId}/attendance/{recordId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Attendance check-in and check-out logs stamped via global network time."
+    }
+  }
+}

@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">حضور المختبر</string>
+    <string name="sign_in_title">نظام حضور وانصراف المختبر</string>
+    <string name="sign_in_subtitle">توثيق الحضور والانصراف ببصمة جهاز الموبايل والتوقيت العالمي مع صورة سيلفي وإرسالها عبر واتساب.</string>
+    <string name="sign_in_with_google">تسجيل الدخول بحساب Google</string>
+    <string name="sign_out">تسجيل الخروج</string>
+    <string name="tab_desk">تسجيل الدوام</string>
+    <string name="tab_history">السجل</string>
+    <string name="tab_staff">الموظفون</string>
+    <string name="global_time_title">التوقيت العالمي المعتمد</string>
+    <string name="global_time_sync">تحديث الوقت</string>
+    <string name="check_in_label">وقت الحضور (عالمي)</string>
+    <string name="check_in_button">حضور بالبصمة</string>
+    <string name="check_out_label">وقت الانصراف (عالمي)</string>
+    <string name="check_out_button">انصراف بالبصمة</string>
+    <string name="whatsapp_target_note">ترسل بطاقة البصمة والسيلفي إلى واتساب: +9647830697575</string>
+</resources>
