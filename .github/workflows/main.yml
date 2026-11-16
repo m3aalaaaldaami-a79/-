@@ -24,16 +24,22 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # 1. حل مشكلة debug.keystore بإنشائه قبل عملية البناء وفي المسار المطلوب
-      - name: Generate Debug Keystore
+      - name: Locate Project, Keystore, and Build APK
         run: |
+          # البحث عن مجلد المشروع الذي يحتوي على build.gradle أو build.gradle.kts
+          PROJECT_DIR=$(find . -maxdepth 3 -name "settings.gradle*" -exec dirname {} \; | head -n 1)
+          if [ -z "$PROJECT_DIR" ]; then
+            PROJECT_DIR="."
+          fi
+          echo "Project directory found at: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+
+          # 1. إنشاء debug.keystore في مسار المشروع ومجلد app
           keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
           mkdir -p app
           cp debug.keystore app/debug.keystore
 
-      # 2. حل مشكلة default_web_client_id إذا لم يكن ملف google-services.json مرفوعاً
-      - name: Inject default_web_client_id if missing
-        run: |
+          # 2. حقن default_web_client_id إذا كان ملف google-services.json غير موجود
           mkdir -p app/src/main/res/values
           if [ ! -f app/google-services.json ]; then
             cat << 'EOF' > app/src/main/res/values/google_auth.xml
@@ -44,14 +50,18 @@ jobs:
           EOF
           fi
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+          # 3. تشغيل gradlew إذا كان موجوداً، أو استخدام gradle المثبت في النظام لتوليده وبناء التطبيق
+          if [ -f "./gradlew" ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle wrapper
+            chmod +x ./gradlew
+            ./gradlew assembleDebug --stacktrace
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: "**/app/build/outputs/apk/debug/app-debug.apk"
